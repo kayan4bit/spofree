@@ -2,6 +2,7 @@
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fkayan4bit%2Fspofree)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/kayan4bit/spofree)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/kayan4bit/spofree)
 
 **Atomic Player** is a futuristic, free, open-source, ad-free Hi-Res music player powered by TIDAL. It features a glassmorphic UI, neon accents, AI-driven recommendations, offline downloads, and a catalogue that covers anything TIDAL has.
 
