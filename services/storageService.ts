@@ -2,19 +2,29 @@
 
 import { Track, Playlist, LocalStorageData, AudioQuality, RecentlyPlayedItem, Album, Artist } from '../types';
 
-const STORAGE_KEY = 'spofreefy_data_v1';
+const STORAGE_KEY = 'atomic_player_data_v1';
+const LEGACY_STORAGE_KEY = 'spofreefy_data_v1';
 
 const getStorage = (): LocalStorageData => {
-  const data = localStorage.getItem(STORAGE_KEY);
-  const defaultData: LocalStorageData = { 
-    likedSongs: [], 
-    playlists: [], 
+  // Migrate from legacy SpoFree storage on first read
+  let data = localStorage.getItem(STORAGE_KEY);
+  if (!data) {
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy) {
+      data = legacy;
+      try { localStorage.setItem(STORAGE_KEY, legacy); } catch {}
+    }
+  }
+
+  const defaultData: LocalStorageData = {
+    likedSongs: [],
+    playlists: [],
     savedAlbums: [],
     followedArtists: [],
     searchHistory: [],
     audioQuality: 'LOSSLESS',
     recentlyPlayed: [],
-    accentColor: '#1db954',
+    accentColor: '#22d3ee',
     showVisualizer: true,
     showStats: false,
     compactMode: false,
@@ -25,9 +35,9 @@ const getStorage = (): LocalStorageData => {
     disableGlow: false,
     updateTitle: true
   };
-  
+
   if (!data) return defaultData;
-  
+
   try {
       const parsed = JSON.parse(data);
       return { ...defaultData, ...parsed }; // Merge to ensure new fields exist

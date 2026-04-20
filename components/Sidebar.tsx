@@ -1,7 +1,7 @@
-
 import React from 'react';
-import { Home, Search, Library, PlusSquare, Heart, Globe, Settings } from 'lucide-react';
+import { Home, Search, Library, PlusSquare, Heart, Globe, Settings, Sparkles } from 'lucide-react';
 import { ViewState, Playlist } from '../types';
+import { APP_NAME } from '../constants';
 
 interface SidebarProps {
   currentView: ViewState;
@@ -11,103 +11,139 @@ interface SidebarProps {
   onCreatePlaylist: () => void;
   onLikedSongsClick: () => void;
   onOpenSettings: () => void;
+  connected?: boolean;
+  accentColor?: string;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ 
-    currentView, onChangeView, playlists, onPlaylistClick, onCreatePlaylist, onLikedSongsClick, onOpenSettings
+export const AtomicLogo: React.FC<{ size?: number; accent?: string; animated?: boolean }> = ({
+  size = 28,
+  accent = '#22d3ee',
+  animated = true,
+}) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" className="block" aria-hidden>
+    <defs>
+      <linearGradient id="atomicGrad" x1="0" x2="1" y1="0" y2="1">
+        <stop offset="0%" stopColor={accent} />
+        <stop offset="55%" stopColor="#a855f7" />
+        <stop offset="100%" stopColor="#f472b6" />
+      </linearGradient>
+    </defs>
+    {/* nucleus */}
+    <circle cx="32" cy="32" r="5" fill="url(#atomicGrad)">
+      {animated && (
+        <animate attributeName="r" values="4.5;5.5;4.5" dur="2.4s" repeatCount="indefinite" />
+      )}
+    </circle>
+    {/* orbits */}
+    <g fill="none" stroke="url(#atomicGrad)" strokeWidth="2" opacity="0.85">
+      <ellipse cx="32" cy="32" rx="26" ry="10" />
+      <ellipse cx="32" cy="32" rx="26" ry="10" transform="rotate(60 32 32)" />
+      <ellipse cx="32" cy="32" rx="26" ry="10" transform="rotate(120 32 32)" />
+    </g>
+  </svg>
+);
+
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentView, onChangeView, playlists, onPlaylistClick, onCreatePlaylist, onLikedSongsClick, onOpenSettings,
+  connected = true, accentColor = '#22d3ee',
 }) => {
-  
-  const NavItem = ({ 
-    view, 
-    icon: Icon, 
-    label 
-  }: { 
-    view: ViewState, 
-    icon: React.ElementType, 
-    label: string 
-  }) => (
-    <button 
-      onClick={() => onChangeView(view)}
-      className={`flex items-center gap-4 px-4 py-2 transition-colors duration-200 w-full text-left
-        ${currentView === view ? 'text-white' : 'text-[#b3b3b3] hover:text-white'}`}
-    >
-      <Icon size={24} strokeWidth={currentView === view ? 2.5 : 2} />
-      <span className="font-bold text-sm truncate">{label}</span>
-    </button>
-  );
+  const NavItem = ({ view, icon: Icon, label }: { view: ViewState, icon: React.ElementType, label: string }) => {
+    const active = currentView === view;
+    return (
+      <button
+        onClick={() => onChangeView(view)}
+        className={`flex items-center gap-4 px-4 py-2 rounded-md transition-all duration-200 w-full text-left ${
+          active ? 'text-white bg-white/5' : 'text-[color:var(--text-secondary)] hover:text-white hover:bg-white/5'
+        }`}
+      >
+        <Icon size={22} strokeWidth={active ? 2.5 : 2} />
+        <span className="font-semibold text-sm truncate">{label}</span>
+        {active && <span className="ml-auto h-5 w-1 rounded-full" style={{ background: `linear-gradient(180deg, ${accentColor}, #a855f7)` }} />}
+      </button>
+    );
+  };
 
   return (
-    <div className="w-64 bg-black h-full flex flex-col pt-6 gap-2 resize-x hidden md:flex border-r border-[#282828] pb-32">
+    <div className="w-64 atomic-glass-strong h-full flex-col pt-5 gap-2 hidden md:flex border-r border-[color:var(--border-subtle)] pb-32">
       {/* Logo Area */}
-      <div className="px-6 mb-2 flex items-center gap-2">
-        {/* Upside down Spotify-ish logo */}
-        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center transform rotate-180">
-             <svg width="20" height="20" viewBox="0 0 24 24" fill="black" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM16.7 17.2C16.5 17.5 16.1 17.6 15.8 17.4C13.1 15.8 9.7 15.4 5.7 16.3C5.4 16.4 5 16.2 4.9 15.8C4.8 15.5 5 15.1 5.4 15C9.7 14 13.5 14.5 16.5 16.3C16.8 16.5 16.9 16.9 16.7 17.2ZM18.1 14C17.8 14.4 17.3 14.5 16.9 14.3C13.8 12.4 9.1 11.9 5.5 13C5.1 13.1 4.6 12.9 4.5 12.5C4.4 12.1 4.6 11.6 5 11.5C9.1 10.2 14.4 10.9 17.9 13.1C18.3 13.3 18.4 13.8 18.1 14ZM18.2 10.6C14.5 8.4 8.4 8.2 4.9 9.3C4.3 9.4 3.7 9.1 3.5 8.5C3.3 7.9 3.6 7.3 4.2 7.1C8.3 5.9 15.1 6.1 19.4 8.7C19.9 9 20.1 9.7 19.8 10.2C19.5 10.7 18.8 10.9 18.2 10.6Z" />
-             </svg>
+      <div className="px-5 mb-3 flex items-center gap-3">
+        <AtomicLogo size={30} accent={accentColor} />
+        <div className="flex flex-col leading-tight">
+          <span className="font-bold text-lg tracking-tight atomic-gradient-text">{APP_NAME}</span>
+          <span className="text-[10px] uppercase tracking-widest text-[color:var(--text-secondary)]">Hi-Res · AI</span>
         </div>
-        <span className="text-white font-bold text-xl tracking-tight">SpoFree</span>
       </div>
 
       {/* Main Nav */}
-      <nav className="flex flex-col gap-2 px-2">
+      <nav className="flex flex-col gap-1 px-2">
         <NavItem view={ViewState.HOME} icon={Home} label="Home" />
         <NavItem view={ViewState.SEARCH} icon={Search} label="Search" />
         <NavItem view={ViewState.LIBRARY} icon={Library} label="Your Library" />
       </nav>
 
       {/* Spacer / Secondary Actions */}
-      <div className="mt-6 px-2 flex flex-col gap-2">
-        <button 
-            onClick={onCreatePlaylist}
-            className="flex items-center gap-4 px-4 py-2 text-[#b3b3b3] hover:text-white transition-colors"
+      <div className="mt-4 px-2 flex flex-col gap-1">
+        <button
+          onClick={onCreatePlaylist}
+          className="flex items-center gap-4 px-4 py-2 rounded-md text-[color:var(--text-secondary)] hover:text-white hover:bg-white/5 transition-all"
         >
-          <div className="bg-[#b3b3b3] p-1 rounded-sm bg-opacity-20">
-            <PlusSquare size={20} className="text-[#b3b3b3]" />
+          <div className="p-1 rounded-sm bg-white/10">
+            <PlusSquare size={18} />
           </div>
-          <span className="font-bold text-sm">Create Playlist</span>
+          <span className="font-semibold text-sm">Create Playlist</span>
         </button>
-        <button 
-            onClick={onLikedSongsClick}
-            className={`flex items-center gap-4 px-4 py-2 transition-colors ${currentView === ViewState.LIKED_SONGS ? 'text-white' : 'text-[#b3b3b3] hover:text-white'}`}
+        <button
+          onClick={onLikedSongsClick}
+          className={`flex items-center gap-4 px-4 py-2 rounded-md transition-all ${
+            currentView === ViewState.LIKED_SONGS ? 'text-white bg-white/5' : 'text-[color:var(--text-secondary)] hover:text-white hover:bg-white/5'
+          }`}
         >
-          <div className="bg-gradient-to-br from-indigo-700 to-blue-300 p-1 rounded-sm opacity-70">
-            <Heart size={20} className="text-white" fill="white" />
+          <div
+            className="p-1 rounded-sm"
+            style={{ background: `linear-gradient(135deg, ${accentColor}, #a855f7)` }}
+          >
+            <Heart size={18} className="text-white" fill="white" />
           </div>
-          <span className="font-bold text-sm">Liked Songs</span>
+          <span className="font-semibold text-sm">Liked Songs</span>
         </button>
       </div>
 
-      <div className="border-t border-[#282828] mx-6 my-2"></div>
+      <div className="border-t border-[color:var(--border-subtle)] mx-6 my-3"></div>
 
       {/* Scrollable Playlist List */}
       <div className="flex-1 overflow-y-auto px-6 py-2">
-        <ul className="flex flex-col gap-3">
-          {playlists.map((playlist) => (
-            <li 
-                key={playlist.uuid} 
+        {playlists.length === 0 ? (
+          <div className="text-xs text-[color:var(--text-secondary)] opacity-70">Your playlists will appear here.</div>
+        ) : (
+          <ul className="flex flex-col gap-2.5">
+            {playlists.map((playlist) => (
+              <li
+                key={playlist.uuid}
                 onClick={() => onPlaylistClick(playlist)}
-                className="text-[#b3b3b3] hover:text-white text-sm cursor-pointer truncate"
-            >
-              {playlist.title}
-            </li>
-          ))}
-        </ul>
+                className="text-[color:var(--text-secondary)] hover:text-white text-sm cursor-pointer truncate transition-colors"
+              >
+                {playlist.title}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Bottom Actions */}
       <div className="px-4 mt-auto flex flex-col gap-2">
-        <button 
-            onClick={onOpenSettings} 
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-white bg-[#282828] hover:bg-[#3E3E3E] rounded-md transition-colors w-full"
+        <button
+          onClick={onOpenSettings}
+          className="flex items-center gap-3 px-4 py-3 text-sm font-semibold atomic-chip rounded-md w-full"
         >
-            <Settings size={20} />
-            <span>Settings</span>
+          <Settings size={18} />
+          <span>Settings</span>
         </button>
-        
-        <div className="flex items-center justify-center gap-2 text-xs text-[#b3b3b3] pt-2">
-            <Globe size={14} />
-            <span>Hifi API Connected</span>
+
+        <div className="flex items-center justify-center gap-2 text-[11px] text-[color:var(--text-secondary)] pt-2">
+          <Globe size={12} className={connected ? 'text-emerald-400' : 'text-rose-400'} />
+          <span>{connected ? 'HiFi API Connected' : 'API Offline'}</span>
+          <Sparkles size={12} className="text-violet-300 ml-1" />
+          <span>AI Ready</span>
         </div>
       </div>
     </div>

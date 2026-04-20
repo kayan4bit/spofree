@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Player } from './components/Player';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, AtomicLogo } from './components/Sidebar';
 import { TrackList } from './components/TrackList';
 import { ImportModal } from './components/ImportModal';
 import { PlaylistEditModal } from './components/PlaylistEditModal';
@@ -10,12 +10,15 @@ import { AddToPlaylistModal } from './components/AddToPlaylistModal';
 import { RightSidebar } from './components/RightSidebar';
 import { DownloadManager } from './components/DownloadManager';
 import { ViewState, Track, Album, Artist, Playlist, RecentlyPlayedItem, RepeatMode, AudioQuality } from './types';
-import { 
-    searchAll, getStreamUrl, getCurrentApiUrl, 
-    getAlbumTracks, getArtistTopTracks, getPlaylistTracks, getArtistAlbums, downloadTrackBlob, downloadBlobWithProgress 
+import {
+    searchAll, getStreamUrl, getCurrentApiUrl,
+    getAlbumTracks, getArtistTopTracks, getPlaylistTracks, getArtistAlbums, downloadTrackBlob, downloadBlobWithProgress,
+    getAudioExtension, sanitizeFilename
 } from './services/hifiService';
 import { storageService } from './services/storageService';
-import { ChevronLeft, ChevronRight, Search, Home, Library, Heart, Github, Pencil, Settings, Download, Archive, Loader2, Plus, Disc, Mic2, ListMusic, ArrowDownUp, LayoutGrid, List } from 'lucide-react';
+import { buildRecommendations, RecommendationSection } from './services/recommendService';
+import { APP_NAME, APP_TITLE } from './constants';
+import { ChevronLeft, ChevronRight, Search, Home, Library, Heart, Github, Pencil, Settings, Archive, Loader2, ArrowDownUp, LayoutGrid, List, Sparkles } from 'lucide-react';
 import { Button } from './components/Button';
 import JSZip from 'jszip';
 
@@ -64,7 +67,7 @@ const App: React.FC = () => {
 
   // Data State
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
-  
+
   // Queue Management
   const [queue, setQueue] = useState<Track[]>([]);
   const [originalQueue, setOriginalQueue] = useState<Track[]>([]); // Backup for shuffle OFF
@@ -72,9 +75,11 @@ const App: React.FC = () => {
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('OFF');
 
   const [recentlyPlayed, setRecentlyPlayed] = useState<RecentlyPlayedItem[]>([]);
-  
+
   // Home Recommendations State
   const [homeSections, setHomeSections] = useState<{ title: string; items: any[]; type: 'ALBUM' | 'PLAYLIST' | 'ARTIST' }[]>([]);
+  const [aiSections, setAiSections] = useState<RecommendationSection[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
 
   // Search State
   const [searchInput, setSearchInput] = useState('');
@@ -101,7 +106,7 @@ const App: React.FC = () => {
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
 
   // Settings State
-  const [accentColor, setAccentColor] = useState('#1db954');
+  const [accentColor, setAccentColor] = useState('#22d3ee');
   const [showVisualizer, setShowVisualizer] = useState(true);
   const [showStats, setShowStats] = useState(false);
   const [audioQuality, setAudioQuality] = useState<AudioQuality>('LOSSLESS');
@@ -236,6 +241,69 @@ const App: React.FC = () => {
     fetchHomeContent();
   }, []);
 
+  // Rebuild AI recommendations when library changes
+  const loadAIRecommendations = async () => {
+    try {
+      setAiLoading(true);
+      const sections = await buildRecommendations({
+        likedSongs: storageService.getLikedSongs(),
+        recentlyPlayed: storageService.getRecentlyPlayed(),
+        followedArtists: storageService.getFollowedArtists(),
+        savedAlbums: storageService.getSavedAlbums(),
+      });
+      setAiSections(sections);
+    } catch (e) {
+      console.warn('Failed to build AI recommendations', e);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAIRecommendations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      const typing = tag === 'input' || tag === 'textarea' || (target && target.isContentEditable);
+      if (typing) return;
+
+      if (e.key === 'Escape') {
+        if (showImportModal) setShowImportModal(false);
+        else if (showPlaylistEditModal) setShowPlaylistEditModal(false);
+        else if (showSettingsModal) setShowSettingsModal(false);
+        else if (trackToAdd) setTrackToAdd(null);
+        return;
+      }
+      if (!currentTrack) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsPlaying(p => !p);
+      } else if (e.key === 'ArrowRight' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === 'ArrowLeft' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handlePrev();
+      } else if (e.key === 'm' || e.key === 'M') {
+        window.dispatchEvent(new CustomEvent('atomic:toggle-mute'));
+      } else if (e.key === 'l' || e.key === 'L') {
+        if (currentTrack) {
+          storageService.toggleLikeSong(currentTrack);
+          refreshLibrary();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTrack, showImportModal, showPlaylistEditModal, showSettingsModal, trackToAdd, queue, repeatMode]);
+
   // Reset sort when view changes
   useEffect(() => {
     setSortOption('CUSTOM');
@@ -245,11 +313,24 @@ const App: React.FC = () => {
   // Update document title
   useEffect(() => {
       if (updateTitle && currentTrack) {
-          document.title = `${currentTrack.title} • ${currentTrack.artist.name}`;
+          document.title = `${currentTrack.title} • ${currentTrack.artist.name} — ${APP_NAME}`;
       } else {
-          document.title = "SpoFree - High Fidelity Streaming";
+          document.title = APP_TITLE;
       }
   }, [currentTrack, updateTitle]);
+
+  // Apply global UI setting classes to <html>
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.toggle('reduced-motion', !!reducedMotion);
+    html.classList.toggle('grayscale', !!grayscaleMode);
+    html.classList.toggle('high-perf', !!highPerformanceMode);
+  }, [reducedMotion, grayscaleMode, highPerformanceMode]);
+
+  // Apply accent color as a CSS variable
+  useEffect(() => {
+    document.documentElement.style.setProperty('--accent', accentColor);
+  }, [accentColor]);
 
   // Update local search input when navigating through history
   useEffect(() => {
@@ -517,15 +598,17 @@ const App: React.FC = () => {
           setExportProgress(Math.round(((i + 1) / detailTracks.length) * 100));
       }
 
-      const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
-      const encodedUri = encodeURI(csvContent);
+      const csv = rows.map(r => r.join(",")).join("\n");
+      const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `${selectedEntity?.title || 'playlist'}_export.csv`);
+      link.href = url;
+      link.download = `${sanitizeFilename(selectedEntity?.title || 'playlist')}_export.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
       setIsExporting(false);
   };
 
@@ -544,9 +627,8 @@ const App: React.FC = () => {
                 try {
                     const url = await getStreamUrl(t.id);
                     const blob = await downloadTrackBlob(url);
-                    const ext = blob.type.includes('flac') ? 'flac' : 'm4a';
-                    const filename = `${i+1}. ${t.title} - ${t.artist.name}.${ext}`.replace(/[\/\\:*?"<>|]/g, '');
-                    
+                    const ext = getAudioExtension(url, blob.type);
+                    const filename = sanitizeFilename(`${String(i + 1).padStart(2, '0')}. ${t.title} - ${t.artist.name}`) + `.${ext}`;
                     folder?.file(filename, blob);
                 } catch (e) {
                     console.error(`Failed to download ${t.title}`, e);
@@ -583,12 +665,14 @@ const App: React.FC = () => {
         });
         
         const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        const ext = blob.type === 'audio/flac' ? 'flac' : 'm4a';
-        link.download = `${currentTrack.title} - ${currentTrack.artist.name}.${ext}`;
+        const objectUrl = URL.createObjectURL(blob);
+        link.href = objectUrl;
+        const ext = getAudioExtension(url, blob.type);
+        link.download = sanitizeFilename(`${currentTrack.title} - ${currentTrack.artist.name}`) + `.${ext}`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch (e) {
         setError("Failed to download track.");
     } finally {
@@ -793,19 +877,21 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen w-screen flex flex-col md:flex-row overflow-hidden bg-black text-white" style={{ filter: grayscaleMode ? 'grayscale(100%)' : 'none' }}>
-      <Sidebar 
-        currentView={view} 
-        onChangeView={(v) => { refreshLibrary(); navigateTo({ view: v }); }} 
+      <Sidebar
+        currentView={view}
+        onChangeView={(v) => { refreshLibrary(); navigateTo({ view: v }); }}
         playlists={playlists}
         onPlaylistClick={(p) => handleEntityClick('PLAYLIST', p)}
         onCreatePlaylist={() => setShowImportModal(true)}
-        onLikedSongsClick={() => { 
-            refreshLibrary(); 
+        onLikedSongsClick={() => {
+            refreshLibrary();
             const tracks = storageService.getLikedSongs();
             const entity = { title: 'Liked Songs', cover: 'https://misc.scdn.co/liked-songs/liked-songs-640.png', artist: { name: 'You' } };
             navigateTo({ view: ViewState.LIKED_SONGS, entity, detailTracks: tracks });
         }}
         onOpenSettings={() => { setSettingsStartTab('QUALITY'); setShowSettingsModal(true); }}
+        connected={!!connectedInstance}
+        accentColor={accentColor}
       />
 
       <div className="flex-1 flex flex-col relative rounded-none md:rounded-lg ml-0 md:ml-2 mt-0 md:mt-2 mr-0 md:mr-2 mb-20 md:mb-2 bg-[#121212] overflow-hidden">
@@ -836,7 +922,7 @@ const App: React.FC = () => {
              )}
           </div>
           <div className="hidden md:flex items-center gap-4">
-            <Button variant="secondary" size="sm" onClick={() => window.open('https://github.com/redretep/spofree/tree/main', '_blank')} className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => window.open('https://github.com/kayan4bit/spofree', '_blank')} className="flex items-center gap-2">
                 <Github size={16} /><span>GitHub</span>
             </Button>
           </div>
@@ -852,32 +938,88 @@ const App: React.FC = () => {
 
                 {view === ViewState.HOME && !isLoading && (
                     <div>
-                        <h1 className="text-3xl font-bold mb-6">What do you want to listen to?</h1>
-                        
+                        <div className="mb-2 flex items-center gap-3">
+                            <AtomicLogo size={36} accent={accentColor} />
+                            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
+                                <span className="atomic-gradient-text">Welcome back</span>
+                            </h1>
+                        </div>
+                        <p className="text-sm text-[color:var(--text-secondary)] mb-8">Hi-Res tracks, AI picks, zero ads.</p>
+
                         {recentlyPlayed.length > 0 && (
-                            <div className="mb-8">
+                            <div className="mb-10">
                                 <h2 className="text-xl font-bold mb-4">Recently Played</h2>
                                 <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                                     {recentlyPlayed.map((item, i) => (
-                                        <div key={i} 
+                                        <div key={i}
                                             onClick={() => item.type === 'TRACK' ? playTrack(item.data as Track) : handleEntityClick(item.type, item.data)}
-                                            className="bg-[#181818] p-4 rounded-md hover:bg-[#282828] cursor-pointer group transition-colors">
+                                            className="atomic-card p-3 rounded-xl cursor-pointer group animate-fade-in">
                                             <img src={
                                                 item.type === 'TRACK' ? (item.data as Track).album.cover :
                                                 item.type === 'ALBUM' ? (item.data as Album).cover :
                                                 item.type === 'ARTIST' ? (item.data as Artist).picture :
                                                 (item.data as Playlist).image
-                                            } className={`w-full aspect-square object-cover shadow-lg mb-4 ${item.type === 'ARTIST' && !squareAvatars ? 'rounded-full' : 'rounded-md'}`} />
-                                            <h3 className="font-bold truncate mb-1">{(item.data as any).title || (item.data as any).name}</h3>
+                                            } className={`w-full aspect-square object-cover shadow-lg mb-3 ${item.type === 'ARTIST' && !squareAvatars ? 'rounded-full' : 'rounded-lg'}`} />
+                                            <h3 className="font-semibold truncate mb-0.5 text-sm">{(item.data as any).title || (item.data as any).name}</h3>
+                                            <p className="text-[11px] text-[color:var(--text-secondary)] truncate uppercase tracking-widest">{item.type.toLowerCase()}</p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
 
+                        {/* AI Recommendations */}
+                        {aiSections.length > 0 && (
+                            <div className="mb-10">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Sparkles size={20} style={{ color: accentColor }} />
+                                    <h2 className="text-2xl font-bold atomic-gradient-text">For You</h2>
+                                </div>
+                                <p className="text-xs text-[color:var(--text-secondary)] mb-5">AI-curated from what you listen to.</p>
+                                {aiSections.map(section => (
+                                    <div key={section.id} className="mb-8 animate-fade-in">
+                                        <div className="flex items-baseline gap-3 mb-3">
+                                            <h3 className="text-lg font-bold">{section.title}</h3>
+                                            {section.subtitle && <span className="text-xs text-[color:var(--text-secondary)]">{section.subtitle}</span>}
+                                        </div>
+                                        {section.type === 'TRACK' ? (
+                                            <TrackList
+                                                tracks={section.items as Track[]}
+                                                onPlay={(t) => playTrack(t, section.items as Track[])}
+                                                currentTrackId={currentTrack?.id}
+                                                accentColor={accentColor}
+                                                hideHeader={true}
+                                                compactMode={compactMode}
+                                                onAddToPlaylist={(t) => setTrackToAdd(t)}
+                                                onArtistClick={(id) => handleArtistClick(id)}
+                                                onAlbumClick={(id) => handleAlbumClick(id)}
+                                            />
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                                                {section.items.map((item: any, idx: number) => {
+                                                    const t = section.type.toLowerCase();
+                                                    const image = t === 'artist' ? item.picture : (t === 'playlist' ? item.image : item.cover);
+                                                    const subtitle = t === 'album' ? item.artist?.name : (t === 'playlist' ? item.creator?.name : 'Artist');
+                                                    return (
+                                                        <div key={idx}
+                                                            onClick={() => handleEntityClick(section.type as any, item)}
+                                                            className="atomic-card p-3 rounded-xl cursor-pointer group">
+                                                            <img src={image} className={`w-full aspect-square object-cover shadow-lg mb-3 ${t === 'artist' && !squareAvatars ? 'rounded-full' : 'rounded-lg'}`} />
+                                                            <h3 className="font-semibold truncate mb-0.5 text-sm">{item.title || item.name}</h3>
+                                                            <p className="text-xs text-[color:var(--text-secondary)] truncate">{subtitle}</p>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
                         {/* Home Recommendations Sections */}
                         {homeSections.map((section, idx) => (
-                            <MediaGrid 
+                            <MediaGrid
                                 key={idx}
                                 title={section.title}
                                 items={section.items}
@@ -885,8 +1027,11 @@ const App: React.FC = () => {
                             />
                         ))}
 
-                        {recentlyPlayed.length === 0 && homeSections.length === 0 && (
-                            <div className="text-[#b3b3b3] text-sm mt-8">Loading recommendations...</div>
+                        {(recentlyPlayed.length === 0 && homeSections.length === 0 && aiSections.length === 0) && (
+                            <div className="text-[color:var(--text-secondary)] text-sm mt-8 flex items-center gap-2">
+                                <Loader2 size={16} className={aiLoading ? 'animate-spin' : ''} />
+                                {aiLoading ? 'Tuning AI recommendations…' : 'Loading recommendations…'}
+                            </div>
                         )}
                     </div>
                 )}

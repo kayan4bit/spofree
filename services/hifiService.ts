@@ -340,6 +340,31 @@ export const getArtistAlbums = async (artistId: string | number): Promise<Album[
     } catch (e) { return []; }
 };
 
+export const getAudioExtension = (url: string, mimeType?: string): string => {
+    // Pull a plausible extension from the URL path, ignoring query/hash
+    try {
+        const u = new URL(url);
+        const path = u.pathname.toLowerCase();
+        const match = path.match(/\.(flac|m4a|mp4|mp3|aac|ogg|opus|wav)(?:$|[?/])/);
+        if (match) return match[1] === 'mp4' ? 'm4a' : match[1];
+    } catch {}
+    const mt = (mimeType || '').toLowerCase();
+    if (mt.includes('flac')) return 'flac';
+    if (mt.includes('mp4') || mt.includes('m4a') || mt.includes('aac')) return 'm4a';
+    if (mt.includes('mpeg') || mt.includes('mp3')) return 'mp3';
+    if (mt.includes('ogg') || mt.includes('opus')) return 'ogg';
+    if (mt.includes('wav')) return 'wav';
+    return 'm4a';
+};
+
+export const sanitizeFilename = (name: string): string => {
+    return name
+        .replace(/[\\/:*?"<>|]+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 180) || 'track';
+};
+
 export const downloadTrackBlob = async (url: string): Promise<Blob> => {
     const response = await fetch(url);
     if (!response.ok) throw new Error("Download failed");

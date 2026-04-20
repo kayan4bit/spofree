@@ -67,7 +67,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const [customTimer, setCustomTimer] = useState('');
     const [showShortcuts, setShowShortcuts] = useState(false);
 
-    const themes = ['#1db954', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#ef4444', '#10b981', '#ffffff'];
+    const themes = ['#22d3ee', '#a855f7', '#f472b6', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#ffffff'];
 
     const tabs = [
         { id: 'QUALITY', label: 'Audio Quality', icon: Wifi },

@@ -1,10 +1,11 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, Volume2, Volume1, VolumeX, Download, Heart, Repeat1, ChevronDown, Timer, Loader2, Mic2, ListMusic, Maximize2, Minimize2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, Volume2, Volume1, VolumeX, Download, Heart, Repeat1, ChevronDown, Loader2, Mic2, ListMusic, Maximize2 } from 'lucide-react';
 import { Track, RepeatMode } from '../types';
 import { storageService } from '../services/storageService';
 import { TrackList } from './TrackList';
 import { Visualizer } from './Visualizer';
+import { DEFAULT_VOLUME } from '../constants';
 
 interface PlayerProps {
   currentTrack: Track | null;
@@ -57,7 +58,14 @@ export const Player: React.FC<PlayerProps> = ({
     queue, onPlayTrack
 }) => {
   const [progress, setProgress] = useState(0);
-  const [volume, setVolume] = useState(0.5);
+  const [volume, setVolume] = useState<number>(() => {
+    try {
+      const stored = parseFloat(localStorage.getItem('atomic_volume') || '');
+      if (!isNaN(stored) && stored >= 0 && stored <= 1) return stored;
+    } catch {}
+    return DEFAULT_VOLUME;
+  });
+  const [preMuteVolume, setPreMuteVolume] = useState<number>(DEFAULT_VOLUME);
   const [duration, setDuration] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -169,12 +177,27 @@ export const Player: React.FC<PlayerProps> = ({
       }
   };
 
+  // Sync volume to the <audio> element on mount, track change, and any volume update
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+    try { localStorage.setItem('atomic_volume', String(volume)); } catch {}
+  }, [volume, currentTrack?.streamUrl]);
+
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const vol = parseFloat(e.target.value);
-      setVolume(vol);
-      if (audioRef.current) {
-          audioRef.current.volume = vol;
-      }
+    const vol = parseFloat(e.target.value);
+    setVolume(vol);
+    if (vol > 0) setPreMuteVolume(vol);
+  };
+
+  const toggleMute = () => {
+    if (volume === 0) {
+      setVolume(preMuteVolume || DEFAULT_VOLUME);
+    } else {
+      setPreMuteVolume(volume);
+      setVolume(0);
+    }
   };
 
   const toggleLike = () => {
@@ -328,7 +351,7 @@ export const Player: React.FC<PlayerProps> = ({
     {/* Bottom Bar Player */}
     {/* Only show if NOT expanded to avoid duplicate controls and z-index issues */}
     {!isExpanded && (
-        <div className="fixed bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 bg-[#181818] border-t border-[#282828] h-20 px-4 flex items-center justify-between z-50 transition-transform duration-300">
+        <div className="fixed bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 atomic-glass-strong border-t border-[color:var(--border-subtle)] h-20 px-4 flex items-center justify-between z-50 transition-transform duration-300">
             {/* Track Info */}
             <div className="flex items-center gap-4 flex-1 min-w-0 md:flex-none md:w-[30%] md:min-w-[180px]">
                 <div className="relative group cursor-pointer flex-shrink-0" onClick={() => setIsExpanded(true)}>
@@ -353,7 +376,7 @@ export const Player: React.FC<PlayerProps> = ({
                         <Shuffle size={16} />
                     </button>
                     <button onClick={onPrev} className="text-[#b3b3b3] hover:text-white"><SkipBack size={20} fill="currentColor" /></button>
-                    <button onClick={onPlayPause} className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform">
+                    <button onClick={onPlayPause} aria-label={isPlaying ? 'Pause' : 'Play'} className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center hover:scale-110 transition-transform shadow-[0_0_24px_rgba(255,255,255,0.25)]" style={{ boxShadow: `0 0 24px ${accentColor}55` }}>
                         {isBuffering ? <Loader2 size={16} className="animate-spin" /> : (isPlaying ? <Pause size={16} fill="black" /> : <Play size={16} fill="black" className="ml-0.5" />)}
                     </button>
                     <button onClick={onNext} className="text-[#b3b3b3] hover:text-white"><SkipForward size={20} fill="currentColor" /></button>
@@ -388,7 +411,7 @@ export const Player: React.FC<PlayerProps> = ({
                 <button onClick={toggleLyrics} className={`hidden md:block p-2 hover:text-white ${showLyrics ? 'text-green-500' : 'text-[#b3b3b3]'}`} title="Lyrics"><Mic2 size={18} /></button>
                 <button onClick={toggleQueue} className={`hidden md:block p-2 hover:text-white ${showQueue ? 'text-green-500' : 'text-[#b3b3b3]'}`} title="Queue"><ListMusic size={18} /></button>
                 <div className="hidden md:flex items-center gap-2 group w-24 md:w-32">
-                    <button onClick={() => setVolume(v => v === 0 ? 0.5 : 0)} className="text-[#b3b3b3] hover:text-white">
+                    <button onClick={toggleMute} className="text-[#b3b3b3] hover:text-white" title={volume === 0 ? 'Unmute' : 'Mute'}>
                         {volume === 0 ? <VolumeX size={18} /> : volume < 0.5 ? <Volume1 size={18} /> : <Volume2 size={18} />}
                     </button>
                     <input 
