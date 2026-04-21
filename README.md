@@ -3,6 +3,9 @@
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fkayan4bit%2Fspofree)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/kayan4bit/spofree)
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/kayan4bit/spofree)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kayan4bit/spofree)
+[![Deploy to Railway](https://railway.com/button.svg)](https://railway.com/template/deploy?repo=https://github.com/kayan4bit/spofree)
+[![Run on Fly.io](https://fly.io/static/images/launch/button.svg)](https://fly.io/launch?repo=https://github.com/kayan4bit/spofree)
 
 **Atomic Player** is a futuristic, free, open-source, ad-free Hi-Res music player powered by TIDAL. It features a glassmorphic UI, neon accents, AI-driven recommendations, offline downloads, and a catalogue that covers anything TIDAL has.
 
@@ -51,6 +54,22 @@ npm run build    # Production build
 ```
 
 TypeScript strict mode and Vite 6 are used throughout.
+
+## ☁️ Deploying
+
+Atomic Player is a pure client-side SPA. Pick any host:
+
+| Host | Config | Notes |
+|---|---|---|
+| **Cloudflare Pages** | Dashboard → Connect to Git | Vite preset, `npm run build`, output `dist` |
+| **Cloudflare Workers** | `wrangler.json` | `npx wrangler deploy` (serves `dist` as static assets with SPA fallback) |
+| **Vercel** | `vercel.json` | Click the button or `vercel --prod` |
+| **Netlify** | `netlify.toml` + `public/_redirects` + `public/_headers` | Click the button or `netlify deploy --prod` |
+| **Render** | `render.yaml` | Static site, auto-builds on push |
+| **Railway** | `railway.json` + `Dockerfile` | Docker + nginx |
+| **Fly.io** | `fly.toml` + `Dockerfile` | `flyctl launch` |
+| **GitHub Pages** | `.github/workflows/deploy-pages.yml` | Auto-deploys `main` to Pages |
+| **Docker (self-host)** | `Dockerfile` + `nginx.conf` | `docker build -t atomic-player . && docker run -p 8080:80 atomic-player` |
 
 ## 🤝 Contributing
 
