@@ -68,7 +68,7 @@ Atomic Player is a pure client-side SPA. Pick any host:
 | **Render** | `render.yaml` | Static site, auto-builds on push |
 | **Railway** | `railway.json` + `Dockerfile` | Docker + nginx |
 | **Fly.io** | `fly.toml` + `Dockerfile` | `flyctl launch` |
-| **GitHub Pages** | `.github/workflows/deploy-pages.yml` | Auto-deploys `main` to Pages |
+| **GitHub Pages** | Paste workflow from [this gist](https://github.com/kayan4bit/spofree/blob/main/README.md#github-pages-workflow) into `.github/workflows/deploy-pages.yml` via the GitHub UI | Auto-deploys `main` to Pages |
 | **Docker (self-host)** | `Dockerfile` + `nginx.conf` | `docker build -t atomic-player . && docker run -p 8080:80 atomic-player` |
 
 ## 🤝 Contributing
@@ -80,3 +80,43 @@ Contributions welcome — open an issue or PR. Please keep changes focused and f
 - https://github.com/uimaxbai/tidal-ui — inspiration
 - https://github.com/uimaxbai/hifi-api — stream-resolving API
 - https://github.com/EduardPrigoana/hifi-instances — public instance list
+
+### GitHub Pages workflow
+
+Create `.github/workflows/deploy-pages.yml` in the GitHub UI (requires `workflow` scope which this PR could not auto-add) with:
+
+```yaml
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: ./dist }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+```
