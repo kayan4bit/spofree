@@ -1,12 +1,19 @@
 {
-  "name": "spofree-v2.3",
+  "name": "atomic-player",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "deploy:pages": "vite build && npx wrangler@latest pages deploy dist --project-name=atomic-player",
+    "deploy:worker": "vite build && npx wrangler@latest deploy",
+    "cf:dev": "vite build && npx wrangler@latest dev"
   },
   "dependencies": {
     "react": "^19.2.1",

@@ -1,93 +1,122 @@
-### I will not continue to update this project. Feel free to fork the project, add features or fix bugs if you want to.
+# ⚛️ Atomic Player
 
----
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fkayan4bit%2Fspofree)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/kayan4bit/spofree)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/kayan4bit/spofree)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kayan4bit/spofree)
+[![Deploy to Railway](https://railway.com/button.svg)](https://railway.com/template/deploy?repo=https://github.com/kayan4bit/spofree)
+[![Run on Fly.io](https://fly.io/static/images/launch/button.svg)](https://fly.io/launch?repo=https://github.com/kayan4bit/spofree)
 
-# 🎶 SpoFree
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fredretep%2Fspofree%2F)
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/redretep/spofree)
+**Atomic Player** is a futuristic, free, open-source, ad-free Hi-Res music player powered by TIDAL. It features a glassmorphic UI, neon accents, AI-driven recommendations, offline downloads, and a catalogue that covers anything TIDAL has.
 
-SpoFree is a free, open-source, and ad-free music player based on Tidal with Hi-Res sound. It has a clean interface similar to Spotify.
-<img src="https://raw.githubusercontent.com/redretep/spofree/ae27a51a154f159ff419b094830b916c00a6a4a2/images/album.jpeg" width="100%">
+> Formerly known as _SpoFree_. Same soul, fully rebuilt UI, faster APIs, new features.
 
-## Features
+## ✨ Features
 
-- ❌**Ad-Free Listening**
-- 💿**Lossless Audio**
-- 🎧**Huge Catalogue** powered by the full TIDAL library
-- 🔲**Clean UI** similar to Spotify
-- 🎶**Playlist Support**
-- 📁**Local Storage** playlists, liked songs, recently listened saved via IndexDB in your browser
-- 🔎**Search**
-- 💾**Export** audio as csv or zip containing lossless .flac files
-- ⏰**Sleep Timer** with customizable length
-- 🔢**Queue** that you can save as a playlist and customize
-- 🎵**Media Session API** for lock screen and control center support
-- 📶**Library** Organized library with Playlists, Liked Songs, Saved Albums, and Followed Artists.
-- 🎵**Audio Quality Selector**
-- 🟥**Accent Color**
-- ⚙️**Additional Settings**
-- 📺**Settings for low-end devices**
-- 📲**Import Playlist** via Text (Artist - Title) or CSV file or from local files
-- 📥**Import Spotify Playlists** using [this website](https://redretep.github.io/spofree-playlists/), [this](https://github.com/redretep/spofree-playlists) is the repo
-- ❗️**More features coming soon**
+- ⚛️ **Futuristic Glassmorphic UI** — neon cyan / violet / magenta accents with subtle animations
+- 🧠 **AI Recommendations** — local, private "For You" picks derived from what you actually listen to
+- 💎 **Hi-Res / Lossless Audio** (LOW / HIGH / LOSSLESS / HI_RES selectable)
+- 🚫 **Ad-Free** listening, always
+- 🎧 **Huge Catalogue** backed by the full TIDAL library
+- 🎶 **Playlists** — create, edit, import (text / CSV / local files), export (CSV / FLAC ZIP)
+- 💾 **Reliable downloads** with proper file-extension detection (FLAC, M4A, MP3, AAC, OGG, WAV)
+- 📥 **Batch ZIP export** for entire playlists/albums
+- ⌨️ **Keyboard shortcuts** — Space, ⌘/Ctrl + ←/→, L (like), M (mute), Esc
+- 📱 **Media Session API** for lock-screen / control-center controls
+- 📚 **Library** — Playlists, Liked Songs, Saved Albums, Followed Artists
+- ⏰ **Sleep Timer**, 🎨 **Accent Picker**, ♿ **Reduced Motion / Grayscale / High-Performance** modes
+- 📶 **Automatic API failover** across multiple public HiFi wrappers
 
-## 🌐 Instances / Wrapper
+## 🌐 API Instances
 
-| Version        | URL                         | Note                          |
-|----------------|------------------------------|-------------------------------|
-| **Official**     | https://spo.free.nf  | doesnt have ssl, but it just embeds spofree.vercel.app, hosted on infinityfree        |
-| **Original**       | https://spofree.vercel.app | original domain, embedded by spo.free.nf |
-| **Unofficial**       | https://github.com/eweerfr/spofree-electron | Electron wrapper for windows by [eweer](https://github.com/eweerfr). Thank you for contributing! |
+Atomic Player uses public [HiFi API wrappers](https://github.com/EduardPrigoana/hifi-instances) and automatically fails over between them. The current default instances are:
 
-## ⚙️ How It Works
+- `triton.squid.wtf`
+- `hund.qqdl.site`
+- `katze.qqdl.site`
+- `vogel.qqdl.site`
+- `wolf.qqdl.site`
+- `maus.qqdl.site`
 
-SpoFree acts as a Frontend that fetches lossless audio directly from TIDAL.
+## ⚙️ How it works
 
-How it works:
-1. You search for a song  
-2. SpoFree sends the query to a HiFi API
-3. The API returns a direct TIDAL lossless stream link  
-4. SpoFree plays the audio
+1. You search for a track / album / artist
+2. Atomic Player queries a HiFi API wrapper
+3. The API returns a direct TIDAL lossless stream URL
+4. Atomic Player streams, caches, and optionally downloads the audio — fully client-side
 
-The API instances come from [open-source HiFi projects](https://github.com/EduardPrigoana/hifi-instances) that provide public endpoints.
+## 🚀 Local development
 
-## 🤝 Contributing and Issues
+```bash
+npm install
+npm run dev      # Vite dev server
+npm run build    # Production build
+```
 
-Contributions are welcome. Feel free to open a Pull Request. Also please submit any bugs you find!
+TypeScript strict mode and Vite 6 are used throughout.
 
-## 🔗 Related Projects
+## ☁️ Deploying
 
-- https://github.com/uimaxbai/tidal-ui - Original Inspiration for this Project
-- https://github.com/sachinsenal0x64/hifi - Tidal Music integration for Subsonic/Jellyfin/Plexamp
-- https://github.com/uimaxbai/hifi-api - API that fetches the streams
-- https://github.com/monochrome-music/monochrome - alternative free tidal music player that uses the same API
-- https://github.com/EduardPrigoana/hifi-instances - list of instances provided for the hifi API
-- https://github.com/eweerfr/spofree-electron - Electron Wrapper of the site for windows
-  
-## Screenshots
+Atomic Player is a pure client-side SPA. Pick any host:
 
-### Audio Quality Selector and Appereance
-<table>
-  <tr>
-    <td><img src="https://raw.githubusercontent.com/redretep/spofree/eaa74dbda39aea0470a7f388436c094ce61b990a/images/audioquality.jpeg" width="100%"></td>
-    <td><img src="https://raw.githubusercontent.com/redretep/spofree/eaa74dbda39aea0470a7f388436c094ce61b990a/images/colors.jpeg" width="100%"></td>
-  </tr>
-</table>
+| Host | Config | Notes |
+|---|---|---|
+| **Cloudflare Pages** | Dashboard → Connect to Git | Vite preset, `npm run build`, output `dist` |
+| **Cloudflare Workers** | `wrangler.json` | `npx wrangler deploy` (serves `dist` as static assets with SPA fallback) |
+| **Vercel** | `vercel.json` | Click the button or `vercel --prod` |
+| **Netlify** | `netlify.toml` + `public/_redirects` + `public/_headers` | Click the button or `netlify deploy --prod` |
+| **Render** | `render.yaml` | Static site, auto-builds on push |
+| **Railway** | `railway.json` + `Dockerfile` | Docker + nginx |
+| **Fly.io** | `fly.toml` + `Dockerfile` | `flyctl launch` |
+| **GitHub Pages** | Paste workflow from [this gist](https://github.com/kayan4bit/spofree/blob/main/README.md#github-pages-workflow) into `.github/workflows/deploy-pages.yml` via the GitHub UI | Auto-deploys `main` to Pages |
+| **Docker (self-host)** | `Dockerfile` + `nginx.conf` | `docker build -t atomic-player . && docker run -p 8080:80 atomic-player` |
 
-### Playlist Import and Library
-<table>
-  <tr>
-    <td><img src="https://raw.githubusercontent.com/redretep/spofree/eaa74dbda39aea0470a7f388436c094ce61b990a/images/import.jpeg" width="100%"></td>
-    <td><img src="https://raw.githubusercontent.com/redretep/spofree/eaa74dbda39aea0470a7f388436c094ce61b990a/images/library.jpeg" width="100%"></td>
-  </tr>
-</table>
+## 🤝 Contributing
 
-### Liked Songs and Extra Settings
-<table>
-  <tr>
-    <td><img src="https://raw.githubusercontent.com/redretep/spofree/eaa74dbda39aea0470a7f388436c094ce61b990a/images/likedsongs.jpeg" width="100%"></td>
-    <td><img src="https://raw.githubusercontent.com/redretep/spofree/eaa74dbda39aea0470a7f388436c094ce61b990a/images/tweaks.jpeg" width="100%"></td>
-  </tr>
-</table>
+Contributions welcome — open an issue or PR. Please keep changes focused and follow the existing code style.
 
+## 🔗 Related projects
 
+- https://github.com/uimaxbai/tidal-ui — inspiration
+- https://github.com/uimaxbai/hifi-api — stream-resolving API
+- https://github.com/EduardPrigoana/hifi-instances — public instance list
+
+### GitHub Pages workflow
+
+Create `.github/workflows/deploy-pages.yml` in the GitHub UI (requires `workflow` scope which this PR could not auto-add) with:
+
+```yaml
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: ./dist }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+```
