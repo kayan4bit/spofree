@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Atomic Player SPA — only HTML navigations go to the worker/fallback; all assets served directly.",
+  "include": ["/*"],
+  "exclude": ["/assets/*", "/*.svg", "/*.png", "/*.jpg", "/*.jpeg", "/*.webp", "/*.ico", "/*.json", "/*.webmanifest", "/*.js", "/*.css", "/*.woff", "/*.woff2", "/manifest.webmanifest", "/favicon.ico"]
+}

@@ -2,7 +2,10 @@ services:
   - type: web
     runtime: static
     name: atomic-player
-    buildCommand: npm ci && npm run build
+    buildCommand: npm install --no-audit --no-fund && npm run build
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
     staticPublishPath: ./dist
     pullRequestPreviewsEnabled: true
     headers:
