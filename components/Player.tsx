@@ -1,11 +1,14 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, Volume2, Volume1, VolumeX, Download, Heart, Repeat1, ChevronDown, Loader2, Mic2, ListMusic, Maximize2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, Volume2, Volume1, VolumeX, Download, Heart, Repeat1, ChevronDown, Loader2, Mic2, ListMusic, Maximize2, Share2, Sliders, Radio as RadioIcon } from 'lucide-react';
 import { Track, RepeatMode } from '../types';
 import { storageService } from '../services/storageService';
 import { TrackList } from './TrackList';
 import { Visualizer } from './Visualizer';
 import { DEFAULT_VOLUME } from '../constants';
+import { audioEngine } from '../services/audioEngine';
+import { EqualizerPanel } from './EqualizerPanel';
+import { notifyTrack, ensureNotificationPermission } from '../services/notificationService';
 
 interface PlayerProps {
   currentTrack: Track | null;
@@ -40,6 +43,12 @@ interface PlayerProps {
   // Queue Data
   queue: Track[];
   onPlayTrack: (track: Track) => void;
+
+  // Focus / radio / share
+  focusMode?: boolean;
+  setFocusMode?: (v: boolean) => void;
+  onRadio?: () => void;
+  desktopNotifications?: boolean;
 }
 
 const formatTime = (seconds: number) => {
@@ -73,12 +82,13 @@ export const Player: React.FC<PlayerProps> = ({
   
   // Audio Ref
   const audioRef = useRef<HTMLAudioElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
+  const [showEq, setShowEq] = useState(false);
+  const [playbackRate, setPlaybackRateState] = useState<number>(() => audioEngine.getPlaybackRate());
 
   // Sleep Timer Ref
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (currentTrack) {
@@ -90,6 +100,7 @@ export const Player: React.FC<PlayerProps> = ({
   useEffect(() => {
       if (audioRef.current) {
           if (isPlaying) {
+              audioEngine.resume();
               const playPromise = audioRef.current.play();
               if (playPromise !== undefined) {
                   playPromise.catch(error => {
@@ -102,41 +113,59 @@ export const Player: React.FC<PlayerProps> = ({
       }
   }, [isPlaying, currentTrack]);
 
-  // Initialize Audio Context for Visualizer
+  // Desktop notification on track change
   useEffect(() => {
-      // iOS detection to bypass Visualizer (AudioContext on iOS can be tricky with background audio)
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-      
-      if (!showVisualizer || !audioRef.current || audioContextRef.current || isIOS) return;
+      if (currentTrack && isPlaying) notifyTrack(currentTrack);
+  }, [currentTrack?.id, isPlaying]);
 
-      try {
-          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          const ctx = new AudioContext();
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 256;
-          
-          const source = ctx.createMediaElementSource(audioRef.current);
-          source.connect(analyser);
-          analyser.connect(ctx.destination);
+  // Keep audio element's playbackRate in sync
+  useEffect(() => {
+      if (audioRef.current) audioRef.current.playbackRate = playbackRate;
+  }, [playbackRate, currentTrack?.streamUrl]);
 
-          audioContextRef.current = ctx;
-          analyserRef.current = analyser;
-          sourceRef.current = source;
-      } catch (e) {
-          console.error("Audio Context Setup Failed", e);
-      }
-      
-  }, [showVisualizer]);
+  // Listen for global playback-rate change events (from EQ panel)
+  useEffect(() => {
+      const h = () => setPlaybackRateState(audioEngine.getPlaybackRate());
+      window.addEventListener('atomic:rate', h);
+      return () => window.removeEventListener('atomic:rate', h);
+  }, []);
 
-  // Sleep Timer Logic
+  // Initialize Audio Engine (EQ + analyser). iOS handles it too since the engine
+  // gracefully degrades and runs on unlock via user-gesture.
+  useEffect(() => {
+      if (!audioRef.current) return;
+      const an = audioEngine.init(audioRef.current);
+      if (an) setAnalyser(an);
+  }, [audioRef.current]);
+
+  // Sleep Timer Logic with gradual fade-out over the last 20 seconds
   useEffect(() => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      if (sleepTimer) {
-          timerRef.current = setTimeout(() => {
-              onPlayPause(); // Pause
-              setSleepTimer(null); // Reset
-          }, sleepTimer * 60 * 1000);
-      }
+      if (fadeRef.current) clearInterval(fadeRef.current);
+      if (!sleepTimer) return;
+
+      const totalMs = sleepTimer * 60 * 1000;
+      const fadeMs = Math.min(20_000, totalMs);
+      const startFadeAt = totalMs - fadeMs;
+      const startVolume = audioRef.current?.volume ?? volume;
+
+      timerRef.current = setTimeout(() => {
+          const steps = 40;
+          const stepMs = fadeMs / steps;
+          let i = 0;
+          fadeRef.current = setInterval(() => {
+              i++;
+              if (audioRef.current) {
+                  audioRef.current.volume = Math.max(0, startVolume * (1 - i / steps));
+              }
+              if (i >= steps) {
+                  if (fadeRef.current) clearInterval(fadeRef.current);
+                  onPlayPause();
+                  if (audioRef.current) audioRef.current.volume = startVolume;
+                  setSleepTimer(null);
+              }
+          }, stepMs);
+      }, startFadeAt);
   }, [sleepTimer]);
 
   // Media Session API Support
@@ -206,21 +235,54 @@ export const Player: React.FC<PlayerProps> = ({
       setIsLiked(!isLiked);
   };
 
+  // Listen for global keyboard-driven mute toggle (from App.tsx).
+  useEffect(() => {
+      const h = () => toggleMute();
+      window.addEventListener('atomic:toggle-mute', h);
+      return () => window.removeEventListener('atomic:toggle-mute', h);
+  }, [volume, preMuteVolume]);
+
+  // Listen for global keyboard shortcut to open EQ
+  useEffect(() => {
+      const h = () => setShowEq(true);
+      window.addEventListener('atomic:open-eq', h);
+      return () => window.removeEventListener('atomic:open-eq', h);
+  }, []);
+
+  const handleShare = async () => {
+      if (!currentTrack) return;
+      const url = `https://tidal.com/browse/track/${currentTrack.id}`;
+      const shareData = {
+          title: currentTrack.title,
+          text: `${currentTrack.title} — ${currentTrack.artist.name}`,
+          url,
+      };
+      try {
+          if (navigator.share) {
+              await navigator.share(shareData);
+              return;
+          }
+      } catch {}
+      try {
+          await navigator.clipboard.writeText(url);
+      } catch {}
+  };
+
   if (!currentTrack) return null;
 
   return (
     <>
     <audio 
         ref={audioRef}
-        key={showVisualizer ? 'viz' : 'no-viz'} // Re-mount if visualizer changes to clean context
         src={currentTrack.streamUrl}
-        crossOrigin={showVisualizer ? "anonymous" : undefined}
+        crossOrigin="anonymous"
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleEnded}
         onWaiting={() => setIsBuffering(true)}
         onPlaying={() => setIsBuffering(false)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
     />
+    {showEq && <EqualizerPanel onClose={() => setShowEq(false)} accentColor={accentColor} />}
 
     {/* Expanded Full Screen Player */}
     {isExpanded && (
@@ -267,9 +329,9 @@ export const Player: React.FC<PlayerProps> = ({
                         {/* Visualizer / Artwork */}
                         <div className="w-full max-w-md aspect-square relative group">
                             <img src={currentTrack.album.cover} className={`w-full h-full object-cover shadow-2xl rounded-lg ${isPlaying && !highPerformanceMode ? 'animate-pulse-slow' : ''}`} />
-                            {showVisualizer && analyserRef.current && (
+                            {showVisualizer && analyser && (
                                 <div className="absolute inset-0 z-20 opacity-80 pointer-events-none mix-blend-screen rounded-lg overflow-hidden">
-                                    <Visualizer analyser={analyserRef.current} isPlaying={isPlaying} accentColor={accentColor} />
+                                    <Visualizer analyser={analyser} isPlaying={isPlaying} accentColor={accentColor} />
                                 </div>
                             )}
                         </div>
@@ -282,6 +344,12 @@ export const Player: React.FC<PlayerProps> = ({
                                     <h2 className="text-xl text-white/70 cursor-pointer hover:underline" onClick={() => { setIsExpanded(false); onArtistClick(currentTrack.artist.id); }}>{currentTrack.artist.name}</h2>
                                 </div>
                                 <div className="flex items-center gap-4">
+                                    <button onClick={() => setShowEq(true)} className="text-white/50 hover:text-white transition-transform active:scale-90" title="Equalizer (E)">
+                                        <Sliders size={28} />
+                                    </button>
+                                    <button onClick={handleShare} className="text-white/50 hover:text-white transition-transform active:scale-90" title="Share track">
+                                        <Share2 size={28} />
+                                    </button>
                                     <button onClick={onDownload} className="text-white/50 hover:text-white transition-transform active:scale-90" title="Download">
                                         <Download size={32} />
                                     </button>
@@ -407,6 +475,8 @@ export const Player: React.FC<PlayerProps> = ({
                         <span>TIME: {Math.round(progress)}/{Math.round(duration)}</span>
                     </div>
                 )}
+                <button onClick={() => setShowEq(true)} className="hidden md:block p-2 hover:text-white text-[#b3b3b3]" title="Equalizer (E)"><Sliders size={18} /></button>
+                <button onClick={handleShare} className="hidden md:block p-2 hover:text-white text-[#b3b3b3]" title="Share"><Share2 size={18} /></button>
                 <button onClick={onDownload} className="hidden md:block p-2 hover:text-white text-[#b3b3b3]" title="Download"><Download size={18} /></button>
                 <button onClick={toggleLyrics} className={`hidden md:block p-2 hover:text-white ${showLyrics ? 'text-green-500' : 'text-[#b3b3b3]'}`} title="Lyrics"><Mic2 size={18} /></button>
                 <button onClick={toggleQueue} className={`hidden md:block p-2 hover:text-white ${showQueue ? 'text-green-500' : 'text-[#b3b3b3]'}`} title="Queue"><ListMusic size={18} /></button>

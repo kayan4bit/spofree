@@ -297,6 +297,21 @@ const App: React.FC = () => {
           storageService.toggleLikeSong(currentTrack);
           refreshLibrary();
         }
+      } else if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('atomic:open-eq'));
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('atomic:toggle-focus'));
+      } else if (e.key === '/') {
+        e.preventDefault();
+        const el = document.querySelector<HTMLInputElement>('input[data-search-input="true"]');
+        el?.focus();
+        el?.select();
+      } else if (e.key === '?') {
+        e.preventDefault();
+        setSettingsStartTab('TWEAKS');
+        setShowSettingsModal(true);
       }
     };
     window.addEventListener('keydown', handler);
