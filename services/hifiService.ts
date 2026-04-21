@@ -5,12 +5,68 @@ import { SearchResult, Track, Album, Artist, Playlist, AudioQuality } from '../t
 import { storageService } from './storageService';
 
 let currentInstanceIndex = 0;
+let instanceLatency: Record<string, number> = {};
 
 export const getCurrentApiUrl = () => API_INSTANCES[currentInstanceIndex];
+export const getInstanceLatency = () => ({ ...instanceLatency });
 
 const rotateInstance = () => {
   currentInstanceIndex = (currentInstanceIndex + 1) % API_INSTANCES.length;
   console.warn(`[Failover] Switching to ${API_INSTANCES[currentInstanceIndex]}`);
+};
+
+/**
+ * Ping every instance in parallel and reorder the preference by latency.
+ * Runs on startup to pick the fastest healthy instance.
+ */
+export const probeInstances = async (timeoutMs: number = 3500): Promise<void> => {
+  const ping = async (base: string): Promise<[string, number]> => {
+    const started = performance.now();
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      // /search is the most universal endpoint across instances.
+      const r = await fetch(`${base.replace(/\/$/, '')}/search/?s=ping`, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) return [base, Number.POSITIVE_INFINITY];
+      return [base, performance.now() - started];
+    } catch {
+      clearTimeout(t);
+      return [base, Number.POSITIVE_INFINITY];
+    }
+  };
+
+  const results = await Promise.all(API_INSTANCES.map(ping));
+  instanceLatency = Object.fromEntries(results);
+  results.sort((a, b) => a[1] - b[1]);
+  const fastest = results.find(([, ms]) => Number.isFinite(ms));
+  if (fastest) {
+    const idx = API_INSTANCES.indexOf(fastest[0]);
+    if (idx >= 0) {
+      currentInstanceIndex = idx;
+      console.log(`[Instances] Fastest: ${fastest[0]} (${Math.round(fastest[1])}ms)`);
+    }
+  }
+};
+
+// --- In-memory cache for search + metadata ---
+type CacheEntry<T> = { value: T; expiresAt: number };
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const cache = new Map<string, CacheEntry<any>>();
+
+const cacheGet = <T>(key: string): T | null => {
+  const hit = cache.get(key);
+  if (!hit) return null;
+  if (hit.expiresAt < Date.now()) { cache.delete(key); return null; }
+  return hit.value as T;
+};
+const cacheSet = <T>(key: string, value: T, ttl: number = CACHE_TTL_MS) => {
+  cache.set(key, { value, expiresAt: Date.now() + ttl });
+  // Cap cache at ~200 entries
+  if (cache.size > 200) {
+    const firstKey = cache.keys().next().value;
+    if (firstKey) cache.delete(firstKey);
+  }
 };
 
 const fetchWithFailover = async (endpoint: string, options?: RequestInit, timeoutMs: number = 10000): Promise<Response> => {
@@ -151,6 +207,10 @@ const parseAlbum = (item: any): Album => ({
 export const searchAll = async (query: string): Promise<SearchResult> => {
   if (!query || !query.trim()) return { tracks: [], albums: [], artists: [], playlists: [] };
 
+  const cacheKey = `search:${query.trim().toLowerCase()}`;
+  const cached = cacheGet<SearchResult>(cacheKey);
+  if (cached) return cached;
+
   const encoded = encodeURIComponent(query.trim());
   const TIMEOUT = 5000; 
 
@@ -194,7 +254,9 @@ export const searchAll = async (query: string): Promise<SearchResult> => {
         creator: { name: item.creator?.name || 'Unknown' }
     })).filter((p: any) => p.uuid && p.title);
 
-    return { tracks, albums, artists, playlists };
+    const result = { tracks, albums, artists, playlists };
+    cacheSet(cacheKey, result);
+    return result;
 
   } catch (error) {
     console.error("Search failed:", error);
@@ -202,7 +264,28 @@ export const searchAll = async (query: string): Promise<SearchResult> => {
   }
 };
 
+// Pre-resolved stream URL cache, for instant skipping to queued tracks.
+const streamUrlCache = new Map<string | number, { url: string; expiresAt: number }>();
+const STREAM_CACHE_TTL = 60 * 1000; // stream URLs are short-lived / signed
+
+export const prefetchStream = async (trackId: string | number): Promise<void> => {
+  const hit = streamUrlCache.get(trackId);
+  if (hit && hit.expiresAt > Date.now()) return;
+  try {
+    const url = await getStreamUrlInner(trackId);
+    streamUrlCache.set(trackId, { url, expiresAt: Date.now() + STREAM_CACHE_TTL });
+  } catch { /* ignore */ }
+};
+
 export const getStreamUrl = async (trackId: string | number): Promise<string> => {
+  const hit = streamUrlCache.get(trackId);
+  if (hit && hit.expiresAt > Date.now()) return hit.url;
+  const url = await getStreamUrlInner(trackId);
+  streamUrlCache.set(trackId, { url, expiresAt: Date.now() + STREAM_CACHE_TTL });
+  return url;
+};
+
+const getStreamUrlInner = async (trackId: string | number): Promise<string> => {
   // Get preferred quality from storage
   const preferredQuality = storageService.getQuality();
   
@@ -264,22 +347,32 @@ export const getStreamUrl = async (trackId: string | number): Promise<string> =>
 };
 
 export const getAlbumTracks = async (albumId: string | number): Promise<Track[]> => {
+    const key = `album:${albumId}`;
+    const cached = cacheGet<Track[]>(key);
+    if (cached) return cached;
     try {
         const response = await fetchWithFailover(`/album/?id=${albumId}`);
         if (!response.ok) return [];
         const json = await response.json();
         const items = extractItems(json, 'items');
-        return items.map(i => i.item ? parseTrack(i.item) : parseTrack(i)).filter(t => t.id && t.title);
+        const tracks = items.map(i => i.item ? parseTrack(i.item) : parseTrack(i)).filter(t => t.id && t.title);
+        cacheSet(key, tracks);
+        return tracks;
     } catch (e) { return []; }
 };
 
 export const getPlaylistTracks = async (uuid: string): Promise<Track[]> => {
+    const key = `playlist:${uuid}`;
+    const cached = cacheGet<Track[]>(key);
+    if (cached) return cached;
     try {
         const response = await fetchWithFailover(`/playlist/?id=${uuid}`);
         if (!response.ok) return [];
         const json = await response.json();
         const items = extractItems(json, 'items');
-        return items.map(i => i.item ? parseTrack(i.item) : parseTrack(i)).filter(t => t.id && t.title);
+        const tracks = items.map(i => i.item ? parseTrack(i.item) : parseTrack(i)).filter(t => t.id && t.title);
+        cacheSet(key, tracks);
+        return tracks;
     } catch (e) { return []; }
 };
 

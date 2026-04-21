@@ -7,6 +7,10 @@
     <meta name="description" content="Atomic Player — a futuristic, ad-free, Hi-Res music player powered by TIDAL." />
     <title>Atomic Player — Hi-Res Streaming</title>
     <link rel="apple-touch-icon" href="ios-logo.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Atomic Player">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       /* ========= Atomic Player Theme ========= */
@@ -200,6 +204,14 @@
 </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Register service worker for offline shell + image cache.
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>

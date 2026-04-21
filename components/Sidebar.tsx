@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Search, Library, PlusSquare, Heart, Globe, Settings, Sparkles } from 'lucide-react';
+import { Home, Search, Library, PlusSquare, Heart, Globe, Settings, Sparkles, Mic2 } from 'lucide-react';
 import { ViewState, Playlist } from '../types';
 import { APP_NAME } from '../constants';
 
@@ -79,6 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <NavItem view={ViewState.HOME} icon={Home} label="Home" />
         <NavItem view={ViewState.SEARCH} icon={Search} label="Search" />
         <NavItem view={ViewState.LIBRARY} icon={Library} label="Your Library" />
+        <NavItem view={ViewState.PODCASTS} icon={Mic2} label="Podcasts" />
       </nav>
 
       {/* Spacer / Secondary Actions */}

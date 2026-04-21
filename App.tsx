@@ -11,14 +11,16 @@ import { RightSidebar } from './components/RightSidebar';
 import { DownloadManager } from './components/DownloadManager';
 import { ViewState, Track, Album, Artist, Playlist, RecentlyPlayedItem, RepeatMode, AudioQuality } from './types';
 import {
-    searchAll, getStreamUrl, getCurrentApiUrl,
+    searchAll, getStreamUrl, getCurrentApiUrl, probeInstances, prefetchStream,
     getAlbumTracks, getArtistTopTracks, getPlaylistTracks, getArtistAlbums, downloadTrackBlob, downloadBlobWithProgress,
     getAudioExtension, sanitizeFilename
 } from './services/hifiService';
 import { storageService } from './services/storageService';
 import { buildRecommendations, RecommendationSection } from './services/recommendService';
+import { isPodcastTrack, getPodcastStreamUrl } from './services/podcastService';
+import { PodcastView } from './components/PodcastView';
 import { APP_NAME, APP_TITLE } from './constants';
-import { ChevronLeft, ChevronRight, Search, Home, Library, Heart, Github, Pencil, Settings, Archive, Loader2, ArrowDownUp, LayoutGrid, List, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Home, Library, Heart, Github, Pencil, Settings, Archive, Loader2, ArrowDownUp, LayoutGrid, List, Sparkles, Mic2 } from 'lucide-react';
 import { Button } from './components/Button';
 import JSZip from 'jszip';
 
@@ -239,7 +241,17 @@ const App: React.FC = () => {
     refreshLibrary();
     updateConnectionStatus();
     fetchHomeContent();
+    // Pick the fastest API instance in the background
+    probeInstances().then(() => updateConnectionStatus()).catch(() => {});
   }, []);
+
+  // Prefetch the next queued track's stream URL so skipping is instant.
+  useEffect(() => {
+    if (!currentTrack || queue.length === 0) return;
+    const idx = queue.findIndex(t => t.id === currentTrack.id);
+    const nextTrack = idx >= 0 && idx < queue.length - 1 ? queue[idx + 1] : null;
+    if (nextTrack) prefetchStream(nextTrack.id);
+  }, [currentTrack?.id, queue]);
 
   // Rebuild AI recommendations when library changes
   const loadAIRecommendations = async () => {
@@ -438,9 +450,16 @@ const App: React.FC = () => {
     refreshLibrary();
 
     try {
-        const streamUrl = await getStreamUrl(track.id);
+        let streamUrl: string;
+        if (isPodcastTrack(track)) {
+            const direct = getPodcastStreamUrl(track);
+            if (!direct) throw new Error("Podcast episode has no audio URL");
+            streamUrl = direct;
+        } else {
+            streamUrl = await getStreamUrl(track.id);
+        }
         updateConnectionStatus();
-        setCurrentTrack({ ...track, streamUrl });
+        setCurrentTrack({ ...track, streamUrl } as any);
         setIsPlaying(true);
     } catch (err: any) {
         console.error("Play error:", err);
@@ -915,6 +934,7 @@ const App: React.FC = () => {
              <button onClick={() => navigateTo({ view: ViewState.HOME })} className={`flex flex-col items-center ${view === ViewState.HOME ? 'text-white' : 'text-[#b3b3b3]'}`}><Home size={24}/><span className="text-[10px]">Home</span></button>
              <button onClick={() => navigateTo({ view: ViewState.SEARCH })} className={`flex flex-col items-center ${view === ViewState.SEARCH ? 'text-white' : 'text-[#b3b3b3]'}`}><Search size={24}/><span className="text-[10px]">Search</span></button>
              <button onClick={() => { refreshLibrary(); navigateTo({ view: ViewState.LIBRARY }); }} className={`flex flex-col items-center ${view === ViewState.LIBRARY ? 'text-white' : 'text-[#b3b3b3]'}`}><Library size={24}/><span className="text-[10px]">Library</span></button>
+             <button onClick={() => navigateTo({ view: ViewState.PODCASTS })} className={`flex flex-col items-center ${view === ViewState.PODCASTS ? 'text-white' : 'text-[#b3b3b3]'}`}><Mic2 size={24}/><span className="text-[10px]">Podcasts</span></button>
              <button onClick={() => { setSettingsStartTab('QUALITY'); setShowSettingsModal(true); }} className="flex flex-col items-center text-[#b3b3b3] hover:text-white"><Settings size={24}/><span className="text-[10px]">Settings</span></button>
         </div>
 
@@ -1205,6 +1225,13 @@ const App: React.FC = () => {
                              )
                         )}
                     </div>
+                )}
+
+                {view === ViewState.PODCASTS && (
+                    <PodcastView
+                        accentColor={accentColor}
+                        onPlayEpisode={(track, queue) => playTrack(track, queue)}
+                    />
                 )}
 
                 {(view === ViewState.ALBUM_DETAILS || view === ViewState.PLAYLIST_DETAILS || view === ViewState.LIKED_SONGS) && selectedEntity && (
